@@ -1,0 +1,305 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+
+:root {
+  --bg-color: #f8fafc;
+  --node-bg: rgba(255, 255, 255, 0.9);
+  --node-bg-selected: #ffffff;
+  --node-border: rgba(0, 0, 0, 0.1);
+  --node-text: #0f172a;
+  --accent: #3b82f6;
+  --accent-hover: #2563eb;
+  --hover-overlay: rgba(0, 0, 0, 0.05);
+  --edge-color: rgba(0, 0, 0, 0.2);
+}
+
+.dark {
+  --bg-color: #0f172a;
+  --node-bg: rgba(30, 41, 59, 0.7);
+  --node-bg-selected: rgba(30, 41, 59, 0.95);
+  --node-border: rgba(255, 255, 255, 0.1);
+  --node-text: #f8fafc;
+  --accent: #3b82f6;
+  --accent-hover: #60a5fa;
+  --hover-overlay: rgba(255, 255, 255, 0.1);
+  --edge-color: rgba(255, 255, 255, 0.2);
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', sans-serif;
+  background-color: var(--bg-color);
+  color: var(--node-text);
+  overflow: hidden;
+}
+
+#root {
+  width: 100vw;
+  height: 100vh;
+}
+
+.custom-node {
+  background: var(--node-bg);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--node-border);
+  border-radius: 12px;
+  padding: 12px 20px;
+  min-width: 150px;
+  color: var(--node-text);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.custom-node:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.react-flow__node.selected .custom-node {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.4), 0 10px 15px -3px rgba(0, 0, 0, 0.2);
+  background: var(--node-bg-selected);
+  transform: scale(1.02);
+}
+
+.react-flow__node.drop-target-hover .custom-node {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.5), 0 0 20px rgba(59, 130, 246, 0.3) !important;
+  background: var(--node-bg-selected) !important;
+  transform: scale(1.05) !important;
+}
+
+.node-content {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 24px;
+}
+
+.node-label {
+  font-weight: 500;
+  font-size: 14px;
+  text-align: center;
+  cursor: text;
+}
+
+.node-input {
+  background: transparent;
+  border: none;
+  color: var(--node-text);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: center;
+  outline: none;
+  width: 100%;
+}
+
+.collapse-button {
+  position: absolute;
+  right: -12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--bg-color);
+  border: 1px solid var(--node-border);
+  color: var(--node-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 11;
+  font-size: 11px;
+  font-weight: bold;
+  transition: background 0.2s ease;
+}
+
+.collapse-button:hover {
+  background: var(--hover-overlay);
+}
+
+.add-button {
+  position: absolute;
+  right: -12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: white;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.2s ease;
+  z-index: 10;
+}
+
+.custom-node:hover .add-button {
+  opacity: 1;
+  transform: translateY(-50%) translateX(32px);
+}
+
+.add-button:hover {
+  background: var(--accent-hover);
+  transform: translateY(-50%) scale(1.1);
+}
+
+.handle {
+  width: 8px;
+  height: 8px;
+  background: var(--accent);
+  border: 2px solid var(--bg-color);
+}
+
+/* React Flow overrrides */
+.react-flow__pane {
+  background-color: var(--bg-color);
+}
+.react-flow__edge-path {
+  stroke: var(--edge-color) !important;
+  stroke-width: 2 !important;
+}
+
+/* Comment Badge */
+.comment-badge {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  background: var(--node-bg);
+  border: 1px solid var(--node-border);
+  border-radius: 12px;
+  padding: 4px 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--node-text);
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  transition: all 0.2s ease;
+  z-index: 10;
+}
+.comment-badge:hover {
+  background: var(--hover-overlay);
+}
+.comment-badge.active {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+/* Comments Sidebar */
+.comments-sidebar {
+  width: 320px;
+  background: var(--node-bg);
+  border-left: 1px solid var(--node-border);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  box-shadow: -4px 0 15px rgba(0,0,0,0.05);
+}
+.sidebar-header {
+  padding: 16px;
+  border-bottom: 1px solid var(--node-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.sidebar-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--node-text);
+}
+.close-button {
+  background: none;
+  border: none;
+  color: var(--node-text);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+}
+.close-button:hover {
+  background: var(--hover-overlay);
+}
+.comments-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.empty-state {
+  text-align: center;
+  color: var(--node-text);
+  opacity: 0.6;
+  font-size: 14px;
+  margin-top: 20px;
+}
+.comment-item {
+  background: var(--hover-overlay);
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--node-border);
+}
+.comment-text {
+  font-size: 14px;
+  color: var(--node-text);
+  margin-bottom: 8px;
+  word-break: break-all;
+}
+.comment-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--node-text);
+  opacity: 0.7;
+}
+.delete-btn {
+  background: none;
+  border: none;
+  color: #ef4444;
+  cursor: pointer;
+  font-size: 11px;
+}
+.delete-btn:hover {
+  text-decoration: underline;
+}
+.comment-input-form {
+  padding: 16px;
+  border-top: 1px solid var(--node-border);
+  display: flex;
+  gap: 8px;
+}
+.comment-input-form input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--node-border);
+  border-radius: 6px;
+  background: var(--bg-color);
+  color: var(--node-text);
+  outline: none;
+}
+.comment-input-form button {
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.comment-input-form button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
