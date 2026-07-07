@@ -223,7 +223,7 @@ export default function MindMapCanvas() {
           const node: Node = {
             id: nodeId,
             position: { x: 0, y: 0 },
-            data: { label },
+            data: { label, isCollapsed: true },
             type: 'custom',
           };
           newNodes.push(node);
@@ -830,7 +830,8 @@ export default function MindMapCanvas() {
         onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}
         onConnect={onConnect}
-        onPaneClick={onAddRootNode}
+        onPaneDoubleClick={onAddRootNode}
+        onNodeDragStart={onNodeDragStart}
         nodeTypes={nodeTypes}
         fitView
       >
