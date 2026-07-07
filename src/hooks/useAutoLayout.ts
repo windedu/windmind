@@ -14,7 +14,9 @@ export const getLayoutedElements = (nodes: Node[], edges: Edge[], direction = 'L
   dagreGraph.setGraph({ rankdir: direction, nodesep: 50, edgesep: 30, ranksep: 100 });
 
   nodes.forEach((node) => {
-    dagreGraph.setNode(node.id, { width: nodeWidth, height: nodeHeight });
+    const w = node.width || nodeWidth;
+    const h = node.height || nodeHeight;
+    dagreGraph.setNode(node.id, { width: w, height: h });
   });
 
   edges.forEach((edge) => {
@@ -25,6 +27,8 @@ export const getLayoutedElements = (nodes: Node[], edges: Edge[], direction = 'L
 
   const layoutedNodes = nodes.map((node) => {
     const nodeWithPosition = dagreGraph.node(node.id);
+    const w = node.width || nodeWidth;
+    const h = node.height || nodeHeight;
     
     // dagre returns the center point, react flow top-left.
     const targetPosition = isHorizontal ? Position.Left : Position.Top;
@@ -35,8 +39,8 @@ export const getLayoutedElements = (nodes: Node[], edges: Edge[], direction = 'L
       targetPosition,
       sourcePosition,
       position: {
-        x: nodeWithPosition.x - nodeWidth / 2,
-        y: nodeWithPosition.y - nodeHeight / 2,
+        x: nodeWithPosition.x - w / 2,
+        y: nodeWithPosition.y - h / 2,
       },
     };
   });

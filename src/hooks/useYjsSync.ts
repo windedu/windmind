@@ -24,7 +24,9 @@ export function useYjsSync() {
           const localNode = currentNodes.find(n => n.id === yNode.id);
           return {
             ...yNode,
-            selected: localNode ? localNode.selected : false
+            selected: localNode ? localNode.selected : false,
+            width: localNode?.width,
+            height: localNode?.height
           };
         });
       });

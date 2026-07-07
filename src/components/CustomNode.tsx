@@ -43,7 +43,9 @@ export default function CustomNode({ data, id, isConnectable, selected }: any) {
             onKeyDown={(e) => e.key === 'Enter' && onBlur()}
           />
         ) : (
-          <div className="node-label">{data.label}</div>
+          <div className="node-label" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'break-word', width: '100%', display: 'block' }}>
+            {data.label}
+          </div>
         )}
         
         {/* Comment Badge */}
