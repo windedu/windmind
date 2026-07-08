@@ -643,8 +643,16 @@ export default function MindMapCanvas() {
               nextSelectedId = children[Math.floor(children.length / 2)].id;
             }
           } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-            const currentX = selectedNode.position.x;
-            const sameLevelNodes = layoutedData.nodes.filter(n => Math.abs(n.position.x - currentX) < 100);
+            const getDepth = (nodeId: string, depth = 0, visited = new Set<string>()): number => {
+              if (visited.has(nodeId)) return depth;
+              visited.add(nodeId);
+              const incoming = edges.find(edge => edge.target === nodeId);
+              if (incoming) return getDepth(incoming.source, depth + 1, visited);
+              return depth;
+            };
+
+            const currentDepth = getDepth(selectedId);
+            const sameLevelNodes = layoutedData.nodes.filter(n => getDepth(n.id) === currentDepth);
             sameLevelNodes.sort((a, b) => a.position.y - b.position.y);
             const currentIndex = sameLevelNodes.findIndex(n => n.id === selectedId);
             
