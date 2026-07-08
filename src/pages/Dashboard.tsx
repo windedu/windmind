@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { Network, LogOut, FileText, Plus } from 'lucide-react';
+import { Network, LogOut, FileText, Plus, Bell } from 'lucide-react';
 import { supabase } from '../store/yjsStore';
 import type { Session } from '@supabase/supabase-js';
+import NotificationsInbox from '../components/NotificationsInbox';
 
 export default function Dashboard({ session }: { session: Session }) {
   const [maps, setMaps] = useState<any[]>([]);
   const [sharedMaps, setSharedMaps] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'my' | 'shared'>('my');
+  const [isInboxOpen, setInboxOpen] = useState(false);
 
   useEffect(() => {
     fetchMaps();
@@ -63,12 +65,31 @@ export default function Dashboard({ session }: { session: Session }) {
           <Network size={32} color="var(--accent)" />
           <h1 style={{ margin: 0, fontSize: '24px' }}>MindSync 대시보드</h1>
         </div>
-        <button 
-          onClick={handleLogout} 
-          style={{ background: 'none', border: 'none', color: 'var(--node-text)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px' }}
-        >
-          <LogOut size={18} /> 로그아웃
-        </button>
+        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+          <div style={{ position: 'relative' }}>
+            <button 
+              onClick={() => setInboxOpen(!isInboxOpen)} 
+              style={{ background: 'var(--node-bg)', border: '1px solid var(--node-border)', borderRadius: '8px', padding: '8px', color: 'var(--node-text)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              title="알림(Inbox)"
+            >
+              <Bell size={18} />
+            </button>
+            {isInboxOpen && (
+              <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '8px', zIndex: 1000 }}>
+                <NotificationsInbox
+                  currentUserEmail={session.user.email!}
+                  onClose={() => setInboxOpen(false)}
+                />
+              </div>
+            )}
+          </div>
+          <button 
+            onClick={handleLogout} 
+            style={{ background: 'none', border: 'none', color: 'var(--node-text)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px' }}
+          >
+            <LogOut size={18} /> 로그아웃
+          </button>
+        </div>
       </div>
 
       <div style={{ display: 'flex', gap: '20px', marginBottom: '24px', borderBottom: '1px solid var(--node-border)' }}>

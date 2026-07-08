@@ -3,7 +3,7 @@ import ReactFlow, { Background, Controls, useReactFlow } from 'reactflow';
 import type { Edge, Node } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { v4 as uuidv4 } from 'uuid';
-import { Plus, Download, Upload, Share2, Home, X, Folder, FolderDown, HelpCircle, FileText, MessageSquare } from 'lucide-react';
+import { Plus, Download, Upload, Share2, Home, X, Folder, FolderDown, HelpCircle, FileText, MessageSquare, Bell } from 'lucide-react';
 import * as Y from 'yjs';
 
 import { useYjsSync } from '../hooks/useYjsSync';
@@ -11,6 +11,7 @@ import { useAutoLayout } from '../hooks/useAutoLayout';
 import CustomNode from './CustomNode';
 import CommentsSidebar from './CommentsSidebar';
 import GlobalCommentsSidebar from './GlobalCommentsSidebar';
+import NotificationsInbox from './NotificationsInbox';
 import { supabase } from '../store/yjsStore';
 
 const DropIndicatorNode = () => {
@@ -67,7 +68,9 @@ export default function MindMapCanvas() {
   const [mapListMode, setMapListMode] = useState<'switch' | 'import'>('switch');
   const [isHelpModalOpen, setHelpModalOpen] = useState(false);
   const [isGlobalCommentsOpen, setGlobalCommentsOpen] = useState(false);
+  const [isInboxOpen, setInboxOpen] = useState(false);
   const [currentUserEmail, setCurrentUserEmail] = useState<string>('');
+  const [sharedUsers, setSharedUsers] = useState<string[]>([]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -160,8 +163,15 @@ export default function MindMapCanvas() {
     const pathParts = window.location.pathname.split('/');
     if (pathParts.length >= 3 && pathParts[1] === 'map') {
       const roomId = pathParts[2];
+      
+      // Fetch Map Title
       supabase.from('mindmaps').select('title').eq('id', roomId).single().then(({ data }) => {
         if (data) setMapTitle(data.title || '제목 없는 마인드맵');
+      });
+
+      // Fetch Shared Users
+      supabase.from('mindmap_shares').select('invited_email').eq('mindmap_id', roomId).then(({ data }) => {
+        if (data) setSharedUsers(data.map(d => d.invited_email));
       });
     }
   }, []);
@@ -197,6 +207,7 @@ export default function MindMapCanvas() {
         alert('성공적으로 초대되었습니다!');
         setInviteEmail('');
         setInviteModalOpen(false);
+        setSharedUsers(prev => [...prev, inviteEmail]);
       }
     }
   };
@@ -826,7 +837,15 @@ export default function MindMapCanvas() {
 
       <div style={{ position: 'absolute', bottom: '24px', right: '24px', zIndex: 1000, display: 'flex', gap: '12px' }}>
         <button
-          onClick={() => setGlobalCommentsOpen(true)}
+          onClick={() => { setInboxOpen(!isInboxOpen); setGlobalCommentsOpen(false); setHelpModalOpen(false); }}
+          style={{ ...actionButtonStyle, padding: '10px', position: 'relative' } as React.CSSProperties}
+          title="알림(Inbox)"
+        >
+          <Bell size={20} />
+          {/* We can show a dot here if unread, but let's keep it simple for now */}
+        </button>
+        <button
+          onClick={() => { setGlobalCommentsOpen(!isGlobalCommentsOpen); setInboxOpen(false); setHelpModalOpen(false); }}
           style={{ ...actionButtonStyle, padding: '10px' } as React.CSSProperties}
           title="전체 코멘트"
         >
@@ -904,7 +923,9 @@ export default function MindMapCanvas() {
           nodeId={selectedNodeIdForComments}
           nodeLabel={nodes.find(n => n.id === selectedNodeIdForComments)?.data?.label || ''}
           comments={comments.filter(c => c.nodeId === selectedNodeIdForComments)}
+          allComments={comments}
           currentUserEmail={currentUserEmail}
+          sharedUsers={sharedUsers}
           onClose={() => setSelectedNodeIdForComments(null)}
           onAddComment={addComment}
           onUpdateComment={updateComment}
@@ -921,6 +942,14 @@ export default function MindMapCanvas() {
           onCommentClick={handleGlobalCommentClick}
         />
       )}
+
+      {isInboxOpen && (
+        <NotificationsInbox
+          currentUserEmail={currentUserEmail}
+          onClose={() => setInboxOpen(false)}
+        />
+      )}
+
       {isInviteModalOpen && (
         <div style={{
           position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',

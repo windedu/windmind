@@ -1,12 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import type { Comment } from '../hooks/useYjsSync';
 import { X, Send, Reply, CheckCircle, Circle, MessageSquare } from 'lucide-react';
+import { supabase } from '../store/yjsStore';
 
 interface CommentsSidebarProps {
   nodeId: string | null;
   nodeLabel: string;
   comments: Comment[];
+  allComments: Comment[];
   currentUserEmail: string;
+  sharedUsers: string[];
   onClose: () => void;
   onAddComment: (comment: Comment) => void;
   onUpdateComment: (id: string, updates: Partial<Comment>) => void;
@@ -17,7 +20,9 @@ export default function CommentsSidebar({
   nodeId,
   nodeLabel,
   comments,
+  allComments,
   currentUserEmail,
+  sharedUsers,
   onClose,
   onAddComment,
   onUpdateComment,
@@ -26,23 +31,132 @@ export default function CommentsSidebar({
   const [inputText, setInputText] = useState('');
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [showResolved, setShowResolved] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   if (!nodeId) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Extract all unique users for mentions
+  const suggestableUsers = useMemo(() => {
+    const users = new Set<string>();
+    if (currentUserEmail) users.add(currentUserEmail);
+    sharedUsers.forEach(u => users.add(u));
+    allComments.forEach(c => {
+      if (c.authorEmail) users.add(c.authorEmail);
+    });
+    return Array.from(users);
+  }, [allComments, sharedUsers, currentUserEmail]);
+
+  // Filter users based on query
+  const filteredUsers = useMemo(() => {
+    if (mentionQuery === null) return [];
+    return suggestableUsers.filter(u => u.toLowerCase().includes(mentionQuery.toLowerCase()));
+  }, [suggestableUsers, mentionQuery]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setInputText(val);
+
+    // Check for @mention trigger
+    const cursor = e.target.selectionStart || 0;
+    const textBeforeCursor = val.slice(0, cursor);
+    const mentionMatch = textBeforeCursor.match(/(?:^|\s)@([^\s]*)$/);
+    
+    if (mentionMatch) {
+      setMentionQuery(mentionMatch[1]);
+    } else {
+      setMentionQuery(null);
+    }
+  };
+
+  const insertMention = (email: string) => {
+    if (!inputRef.current) return;
+    const cursor = inputRef.current.selectionStart || 0;
+    const textBeforeCursor = inputText.slice(0, cursor);
+    const textAfterCursor = inputText.slice(cursor);
+    
+    const mentionMatch = textBeforeCursor.match(/(?:^|\s)@([^\s]*)$/);
+    if (mentionMatch) {
+      const matchIndex = mentionMatch.index !== undefined ? (textBeforeCursor[mentionMatch.index] === '@' ? mentionMatch.index : mentionMatch.index + 1) : -1;
+      if (matchIndex !== -1) {
+        const newText = textBeforeCursor.slice(0, matchIndex) + `@${email} ` + textAfterCursor;
+        setInputText(newText);
+      }
+    }
+    setMentionQuery(null);
+    inputRef.current.focus();
+  };
+
+  const getMapId = () => {
+    const pathParts = window.location.pathname.split('/');
+    return pathParts.length >= 3 && pathParts[1] === 'map' ? pathParts[2] : null;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim()) return;
 
+    const newCommentId = Math.random().toString(36).substr(2, 9);
+    
     onAddComment({
-      id: Math.random().toString(36).substr(2, 9),
+      id: newCommentId,
       nodeId,
       text: inputText.trim(),
       createdAt: Date.now(),
       authorEmail: currentUserEmail,
       parentId: replyingTo || undefined
     });
+
+    const mapId = getMapId();
+    if (mapId) {
+      // 1. Check for mentions
+      const mentionRegex = /@([\w.-]+@[\w.-]+\.\w+)/g;
+      const mentionedEmails = Array.from(inputText.matchAll(mentionRegex)).map(m => m[1]);
+      const uniqueMentions = Array.from(new Set(mentionedEmails)).filter(email => email !== currentUserEmail);
+
+      for (const email of uniqueMentions) {
+        supabase.from('notifications').insert({
+          user_email: email,
+          sender_email: currentUserEmail,
+          mindmap_id: mapId,
+          node_id: nodeId,
+          type: 'mention',
+          content: inputText.trim()
+        }).then(); // Fire and forget
+      }
+
+      // 2. Check for thread replies
+      if (replyingTo) {
+        const parentComment = allComments.find(c => c.id === replyingTo);
+        const threadParticipants = new Set<string>();
+        if (parentComment?.authorEmail) threadParticipants.add(parentComment.authorEmail);
+        
+        allComments.forEach(c => {
+          if (c.parentId === replyingTo && c.authorEmail) {
+            threadParticipants.add(c.authorEmail);
+          }
+        });
+
+        // Remove sender and anyone who was already mentioned (to avoid duplicate notifications)
+        threadParticipants.delete(currentUserEmail);
+        uniqueMentions.forEach(email => threadParticipants.delete(email));
+
+        for (const email of threadParticipants) {
+          supabase.from('notifications').insert({
+            user_email: email,
+            sender_email: currentUserEmail,
+            mindmap_id: mapId,
+            node_id: nodeId,
+            type: 'reply',
+            content: inputText.trim()
+          }).then(); // Fire and forget
+        }
+      }
+    }
+
     setInputText('');
     setReplyingTo(null);
+    setMentionQuery(null);
   };
 
   const topLevelComments = comments.filter(c => !c.parentId);
@@ -136,7 +250,7 @@ export default function CommentsSidebar({
         )}
       </div>
 
-      <div style={{ borderTop: '1px solid var(--node-border)', padding: '16px', background: 'var(--bg-color)' }}>
+      <div style={{ borderTop: '1px solid var(--node-border)', padding: '16px', background: 'var(--bg-color)', position: 'relative' }}>
         {replyingTo && (
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', padding: '6px 10px', background: 'var(--node-bg)', borderRadius: '6px', fontSize: '12px', color: 'var(--text-color)', border: '1px solid var(--node-border)' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -148,13 +262,32 @@ export default function CommentsSidebar({
             </button>
           </div>
         )}
+        
+        {mentionQuery !== null && filteredUsers.length > 0 && (
+          <div style={{ position: 'absolute', bottom: replyingTo ? '100px' : '65px', left: '16px', right: '16px', background: 'var(--bg-color)', border: '1px solid var(--node-border)', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 10, maxHeight: '150px', overflowY: 'auto' }}>
+            {filteredUsers.map(email => (
+              <div 
+                key={email} 
+                onClick={() => insertMention(email)}
+                style={{ padding: '8px 12px', fontSize: '13px', cursor: 'pointer', color: 'var(--text-color)', borderBottom: '1px solid var(--node-bg)' }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'var(--node-bg)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+              >
+                <span style={{ fontWeight: 'bold' }}>{getAuthorName(email)}</span> 
+                <span style={{ color: 'var(--node-text)', fontSize: '11px', marginLeft: '6px' }}>({email})</span>
+              </div>
+            ))}
+          </div>
+        )}
+
         <form className="comment-input-form" onSubmit={handleSubmit} style={{ border: 'none', padding: 0 }}>
           <input
+            ref={inputRef}
             id="comment-input"
             type="text"
             value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            placeholder={replyingTo ? "답글을 입력하세요..." : "새로운 코멘트를 입력하세요..."}
+            onChange={handleInputChange}
+            placeholder={replyingTo ? "답글을 입력하세요... (@멘션 가능)" : "새로운 코멘트를 입력하세요... (@멘션 가능)"}
             autoFocus
             style={{ borderRadius: '6px', border: '1px solid var(--node-border)', padding: '10px 12px' }}
           />
