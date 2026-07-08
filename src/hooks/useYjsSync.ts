@@ -9,6 +9,7 @@ export interface Comment {
   nodeId: string;
   text: string;
   createdAt: number;
+  authorEmail?: string;
 }
 
 export function useYjsSync() {

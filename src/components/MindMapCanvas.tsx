@@ -64,11 +64,22 @@ export default function MindMapCanvas() {
   const [isMapListModalOpen, setMapListModalOpen] = useState(false);
   const [mapListMode, setMapListMode] = useState<'switch' | 'import'>('switch');
   const [isHelpModalOpen, setHelpModalOpen] = useState(false);
+  const [currentUserEmail, setCurrentUserEmail] = useState<string>('');
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user?.email) {
+        setCurrentUserEmail(session.user.email);
+      }
+    });
+  }, []);
 
   const fetchAvailableMaps = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
     
+    setCurrentUserEmail(session.user.email || '');
+
     const { data: myMaps } = await supabase
       .from('mindmaps')
       .select('id, title')
@@ -870,6 +881,7 @@ export default function MindMapCanvas() {
           nodeId={selectedNodeIdForComments}
           nodeLabel={nodes.find(n => n.id === selectedNodeIdForComments)?.data?.label || ''}
           comments={comments.filter(c => c.nodeId === selectedNodeIdForComments)}
+          currentUserEmail={currentUserEmail}
           onClose={() => setSelectedNodeIdForComments(null)}
           onAddComment={addComment}
           onDeleteComment={deleteComment}

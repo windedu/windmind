@@ -6,6 +6,7 @@ interface CommentsSidebarProps {
   nodeId: string | null;
   nodeLabel: string;
   comments: Comment[];
+  currentUserEmail: string;
   onClose: () => void;
   onAddComment: (comment: Comment) => void;
   onDeleteComment: (id: string) => void;
@@ -15,6 +16,7 @@ export default function CommentsSidebar({
   nodeId,
   nodeLabel,
   comments,
+  currentUserEmail,
   onClose,
   onAddComment,
   onDeleteComment
@@ -31,7 +33,8 @@ export default function CommentsSidebar({
       id: Math.random().toString(36).substr(2, 9),
       nodeId,
       text: inputText.trim(),
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      authorEmail: currentUserEmail
     });
     setInputText('');
   };
@@ -52,8 +55,15 @@ export default function CommentsSidebar({
           comments.sort((a, b) => a.createdAt - b.createdAt).map(comment => (
             <div key={comment.id} className="comment-item">
               <div className="comment-text">{comment.text}</div>
-              <div className="comment-meta">
-                {new Date(comment.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              <div className="comment-meta" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px' }}>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <span style={{ fontWeight: 'bold', color: 'var(--accent)' }}>
+                    {comment.authorEmail ? comment.authorEmail.split('@')[0] : '익명'}
+                  </span>
+                  <span style={{ fontSize: '11px', color: 'var(--node-text)' }}>
+                    {new Date(comment.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
                 <button onClick={() => onDeleteComment(comment.id)} className="delete-btn">삭제</button>
               </div>
             </div>
