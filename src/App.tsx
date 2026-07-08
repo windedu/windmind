@@ -32,7 +32,7 @@ function App() {
       <Routes>
         <Route path="/" element={session ? <Dashboard session={session} /> : <Navigate to="/login" replace />} />
         <Route path="/login" element={!session ? <Auth /> : <Navigate to="/" replace />} />
-        <Route path="/map/:id" element={<Workspace />} />
+        <Route path="/map/:id" element={session ? <Workspace /> : <Navigate to="/login" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
