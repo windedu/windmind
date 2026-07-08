@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import type { Comment } from '../hooks/useYjsSync';
 import { X, Send, Reply, CheckCircle, Circle, MessageSquare } from 'lucide-react';
 import { supabase } from '../store/yjsStore';
@@ -32,6 +32,7 @@ export default function CommentsSidebar({
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [showResolved, setShowResolved] = useState(false);
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [selectedMentionIndex, setSelectedMentionIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
   if (!nodeId) return null;
@@ -52,6 +53,10 @@ export default function CommentsSidebar({
     if (mentionQuery === null) return [];
     return suggestableUsers.filter(u => u.toLowerCase().includes(mentionQuery.toLowerCase()));
   }, [suggestableUsers, mentionQuery]);
+
+  useEffect(() => {
+    setSelectedMentionIndex(0);
+  }, [filteredUsers]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -85,6 +90,23 @@ export default function CommentsSidebar({
     }
     setMentionQuery(null);
     inputRef.current.focus();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (mentionQuery !== null && filteredUsers.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedMentionIndex((prev) => (prev + 1) % filteredUsers.length);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedMentionIndex((prev) => (prev - 1 + filteredUsers.length) % filteredUsers.length);
+      } else if (e.key === 'Tab' || e.key === 'Enter') {
+        e.preventDefault();
+        insertMention(filteredUsers[selectedMentionIndex]);
+      } else if (e.key === 'Escape') {
+        setMentionQuery(null);
+      }
+    }
   };
 
   const getMapId = () => {
@@ -265,13 +287,12 @@ export default function CommentsSidebar({
         
         {mentionQuery !== null && filteredUsers.length > 0 && (
           <div style={{ position: 'absolute', bottom: replyingTo ? '100px' : '65px', left: '16px', right: '16px', background: 'var(--bg-color)', border: '1px solid var(--node-border)', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 10, maxHeight: '150px', overflowY: 'auto' }}>
-            {filteredUsers.map(email => (
+            {filteredUsers.map((email, index) => (
               <div 
                 key={email} 
                 onClick={() => insertMention(email)}
-                style={{ padding: '8px 12px', fontSize: '13px', cursor: 'pointer', color: 'var(--text-color)', borderBottom: '1px solid var(--node-bg)' }}
-                onMouseEnter={(e) => e.currentTarget.style.background = 'var(--node-bg)'}
-                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                style={{ padding: '8px 12px', fontSize: '13px', cursor: 'pointer', color: 'var(--text-color)', borderBottom: '1px solid var(--node-bg)', background: index === selectedMentionIndex ? 'var(--node-bg)' : 'transparent' }}
+                onMouseEnter={() => setSelectedMentionIndex(index)}
               >
                 <span style={{ fontWeight: 'bold' }}>{getAuthorName(email)}</span> 
                 <span style={{ color: 'var(--node-text)', fontSize: '11px', marginLeft: '6px' }}>({email})</span>
@@ -287,6 +308,7 @@ export default function CommentsSidebar({
             type="text"
             value={inputText}
             onChange={handleInputChange}
+            onKeyDown={handleKeyDown}
             placeholder={replyingTo ? "답글을 입력하세요... (@멘션 가능)" : "새로운 코멘트를 입력하세요... (@멘션 가능)"}
             autoFocus
             style={{ borderRadius: '6px', border: '1px solid var(--node-border)', padding: '10px 12px' }}
