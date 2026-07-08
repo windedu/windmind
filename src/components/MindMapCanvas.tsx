@@ -44,6 +44,7 @@ export default function MindMapCanvas() {
     changeParent,
     comments,
     addComment,
+    updateComment,
     deleteComment,
     undoManager
   } = useYjsSync();
@@ -561,7 +562,7 @@ export default function MindMapCanvas() {
         onLabelChange,
         onToggleCollapse: () => onToggleCollapse(node.id),
         childrenCount: edges.filter(e => e.source === node.id).length,
-        commentsCount: nodeComments.length,
+        commentsCount: nodeComments.filter(c => !c.resolved).length,
         onOpenComments: () => setSelectedNodeIdForComments(node.id)
       }
     };
@@ -884,6 +885,7 @@ export default function MindMapCanvas() {
           currentUserEmail={currentUserEmail}
           onClose={() => setSelectedNodeIdForComments(null)}
           onAddComment={addComment}
+          onUpdateComment={updateComment}
           onDeleteComment={deleteComment}
         />
       )}

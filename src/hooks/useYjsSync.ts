@@ -10,6 +10,8 @@ export interface Comment {
   text: string;
   createdAt: number;
   authorEmail?: string;
+  parentId?: string;
+  resolved?: boolean;
 }
 
 export function useYjsSync() {
@@ -210,9 +212,24 @@ export function useYjsSync() {
     });
   }, []);
 
+  const updateComment = useCallback((id: string, updates: Partial<Comment>) => {
+    docTransact(() => {
+      const comment = yCommentsMap.get(id);
+      if (comment) {
+        yCommentsMap.set(id, { ...comment, ...updates });
+      }
+    });
+  }, []);
+
   const deleteComment = useCallback((id: string) => {
     docTransact(() => {
       yCommentsMap.delete(id);
+      // Also delete any replies to this comment
+      const repliesToDelete: string[] = [];
+      yCommentsMap.forEach((comment, key) => {
+        if ((comment as Comment).parentId === id) repliesToDelete.push(key);
+      });
+      repliesToDelete.forEach(replyId => yCommentsMap.delete(replyId));
     });
   }, []);
 
@@ -244,6 +261,7 @@ export function useYjsSync() {
     replaceAll,
     changeParent,
     addComment,
+    updateComment,
     deleteComment,
     undoManager,
     provider
