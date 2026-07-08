@@ -340,6 +340,15 @@ export default function MindMapCanvas() {
     }, 10);
   }, [addNodeAndEdge, setNodes]);
 
+  const lastPaneClick = useRef(0);
+  const handlePaneClick = useCallback(() => {
+    const now = Date.now();
+    if (now - lastPaneClick.current < 300) {
+      onAddRootNode();
+    }
+    lastPaneClick.current = now;
+  }, [onAddRootNode]);
+
   const onAddChild = useCallback((parentId: string) => {
     const newNodeId = uuidv4();
     const newNode: Node = {
@@ -830,8 +839,7 @@ export default function MindMapCanvas() {
         onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}
         onConnect={onConnect}
-        onPaneDoubleClick={onAddRootNode}
-        onNodeDragStart={onNodeDragStart}
+        onPaneClick={handlePaneClick}
         nodeTypes={nodeTypes}
         fitView
       >
