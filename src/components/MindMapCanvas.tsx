@@ -1,5 +1,5 @@
 import { useMemo, useCallback, useEffect, useRef, useState } from 'react';
-import ReactFlow, { Background, Controls } from 'reactflow';
+import ReactFlow, { Background, Controls, useReactFlow } from 'reactflow';
 import type { Edge, Node } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { v4 as uuidv4 } from 'uuid';
@@ -47,6 +47,8 @@ export default function MindMapCanvas() {
     deleteComment,
     undoManager
   } = useYjsSync();
+
+  const { setCenter, getZoom } = useReactFlow();
 
   const { applyLayout } = useAutoLayout();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -641,22 +643,15 @@ export default function MindMapCanvas() {
               nextSelectedId = children[Math.floor(children.length / 2)].id;
             }
           } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-            const incoming = edges.find(edge => edge.target === selectedId);
-            if (incoming) {
-              const parentId = incoming.source;
-              const siblings = edges
-                .filter(edge => edge.source === parentId)
-                .map(edge => layoutedData.nodes.find(n => n.id === edge.target))
-                .filter(n => n !== undefined) as Node[];
-              
-              siblings.sort((a, b) => a.position.y - b.position.y);
-              const currentIndex = siblings.findIndex(n => n.id === selectedId);
-              
-              if (e.key === 'ArrowUp' && currentIndex > 0) {
-                nextSelectedId = siblings[currentIndex - 1].id;
-              } else if (e.key === 'ArrowDown' && currentIndex < siblings.length - 1) {
-                nextSelectedId = siblings[currentIndex + 1].id;
-              }
+            const currentX = selectedNode.position.x;
+            const sameLevelNodes = layoutedData.nodes.filter(n => Math.abs(n.position.x - currentX) < 100);
+            sameLevelNodes.sort((a, b) => a.position.y - b.position.y);
+            const currentIndex = sameLevelNodes.findIndex(n => n.id === selectedId);
+            
+            if (e.key === 'ArrowUp' && currentIndex > 0) {
+              nextSelectedId = sameLevelNodes[currentIndex - 1].id;
+            } else if (e.key === 'ArrowDown' && currentIndex < sameLevelNodes.length - 1) {
+              nextSelectedId = sameLevelNodes[currentIndex + 1].id;
             }
           }
 
@@ -665,6 +660,13 @@ export default function MindMapCanvas() {
               ...n,
               selected: n.id === nextSelectedId
             })));
+            
+            const nextNode = layoutedData.nodes.find(n => n.id === nextSelectedId);
+            if (nextNode) {
+              setTimeout(() => {
+                setCenter(nextNode.position.x + 100, nextNode.position.y + 25, { duration: 300, zoom: getZoom() });
+              }, 10);
+            }
           }
         }
       }
