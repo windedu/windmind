@@ -3,13 +3,14 @@ import ReactFlow, { Background, Controls, useReactFlow } from 'reactflow';
 import type { Edge, Node } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { v4 as uuidv4 } from 'uuid';
-import { Plus, Download, Upload, Share2, Home, X, Folder, FolderDown, HelpCircle, FileText } from 'lucide-react';
+import { Plus, Download, Upload, Share2, Home, X, Folder, FolderDown, HelpCircle, FileText, MessageSquare } from 'lucide-react';
 import * as Y from 'yjs';
 
 import { useYjsSync } from '../hooks/useYjsSync';
 import { useAutoLayout } from '../hooks/useAutoLayout';
 import CustomNode from './CustomNode';
 import CommentsSidebar from './CommentsSidebar';
+import GlobalCommentsSidebar from './GlobalCommentsSidebar';
 import { supabase } from '../store/yjsStore';
 
 const DropIndicatorNode = () => {
@@ -65,6 +66,7 @@ export default function MindMapCanvas() {
   const [isMapListModalOpen, setMapListModalOpen] = useState(false);
   const [mapListMode, setMapListMode] = useState<'switch' | 'import'>('switch');
   const [isHelpModalOpen, setHelpModalOpen] = useState(false);
+  const [isGlobalCommentsOpen, setGlobalCommentsOpen] = useState(false);
   const [currentUserEmail, setCurrentUserEmail] = useState<string>('');
 
   useEffect(() => {
@@ -335,6 +337,19 @@ export default function MindMapCanvas() {
     return { nodes: finalNodes, edges: dagreResult.edges };
   }, [visibleNodes, visibleEdges, applyLayout]);
 
+  const handleGlobalCommentClick = useCallback((nodeId: string) => {
+    setGlobalCommentsOpen(false);
+    setSelectedNodeIdForComments(nodeId);
+    
+    // Auto-pan to the node
+    const node = layoutedData.nodes.find(n => n.id === nodeId);
+    if (node) {
+      setTimeout(() => {
+        setCenter(node.position.x + 100, node.position.y + 25, { duration: 500, zoom: getZoom() });
+      }, 10);
+    }
+  }, [layoutedData.nodes, setCenter, getZoom]);
+
   const onAddRootNode = useCallback(() => {
     const newNodeId = uuidv4();
     const newNode: Node = {
@@ -562,7 +577,7 @@ export default function MindMapCanvas() {
         onLabelChange,
         onToggleCollapse: () => onToggleCollapse(node.id),
         childrenCount: edges.filter(e => e.source === node.id).length,
-        commentsCount: nodeComments.filter(c => !c.resolved).length,
+        commentsCount: nodeComments.filter(c => !c.resolved && !c.parentId).length,
         onOpenComments: () => setSelectedNodeIdForComments(node.id)
       }
     };
@@ -811,6 +826,13 @@ export default function MindMapCanvas() {
 
       <div style={{ position: 'absolute', bottom: '24px', right: '24px', zIndex: 1000, display: 'flex', gap: '12px' }}>
         <button
+          onClick={() => setGlobalCommentsOpen(true)}
+          style={{ ...actionButtonStyle, padding: '10px' } as React.CSSProperties}
+          title="전체 코멘트"
+        >
+          <MessageSquare size={20} />
+        </button>
+        <button
           onClick={() => setHelpModalOpen(true)}
           style={{
             background: 'var(--node-bg)',
@@ -887,6 +909,16 @@ export default function MindMapCanvas() {
           onAddComment={addComment}
           onUpdateComment={updateComment}
           onDeleteComment={deleteComment}
+        />
+      )}
+
+      {isGlobalCommentsOpen && (
+        <GlobalCommentsSidebar
+          comments={comments}
+          nodes={nodes}
+          currentUserEmail={currentUserEmail}
+          onClose={() => setGlobalCommentsOpen(false)}
+          onCommentClick={handleGlobalCommentClick}
         />
       )}
       {isInviteModalOpen && (
