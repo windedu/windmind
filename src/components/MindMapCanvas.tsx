@@ -597,9 +597,11 @@ export default function MindMapCanvas() {
   // Handle Keyboard Shortcuts globally (Undo/Redo, Tab, Enter)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Handle Escape globally to close modals/inputs
       if (e.key === 'Escape') {
         setSelectedNodeIdForComments(null);
+        setGlobalCommentsOpen(false);
+        setInboxOpen(false);
+        setHelpModalOpen(false);
         if (document.activeElement instanceof HTMLElement) {
           document.activeElement.blur();
         }
