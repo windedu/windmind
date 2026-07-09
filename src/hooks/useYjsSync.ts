@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import * as Y from 'yjs';
 import { applyNodeChanges, applyEdgeChanges, addEdge as rfAddEdge } from 'reactflow';
 import type { Node, Edge, NodeChange, EdgeChange, Connection } from 'reactflow';
-import { doc, yNodesMap, yEdgesMap, yCommentsMap, undoManager, provider, supabase, roomId } from '../store/yjsStore';
+import { doc, yNodesMap, yEdgesMap, yCommentsMap, undoManager, supabase, roomId } from '../store/yjsStore';
 
 export interface Comment {
   id: string;
@@ -90,11 +90,39 @@ export function useYjsSync() {
 
     loadFromSupabase();
 
-    // Supabase Auto-save
+    // Supabase Realtime Broadcast & Auto-save
+    const channel = supabase.channel(`mindmap-${roomId}`, {
+      config: { broadcast: { self: false, ack: false } },
+    });
+    
+    channel.on('broadcast', { event: 'yjs-update' }, ({ payload }) => {
+      if (roomId === 'mindsync-default-room') return;
+      const { update } = payload;
+      const match = update.match(/.{1,2}/g);
+      if (match) {
+        const buffer = new Uint8Array(match.map((byte: string) => parseInt(byte, 16)));
+        try {
+          Y.applyUpdate(doc, buffer, 'supabase-broadcast');
+        } catch(e) {
+          console.error('Failed to apply update', e);
+        }
+      }
+    }).subscribe();
+
     let timeoutId: any;
     let isSaving = false;
-    const handleUpdate = () => {
+    const handleUpdate = (update: Uint8Array, origin: any) => {
       if (roomId === 'mindsync-default-room') return;
+
+      if (origin !== 'supabase-broadcast') {
+        const hex = Array.from(update).map(b => b.toString(16).padStart(2, '0')).join('');
+        channel.send({
+          type: 'broadcast',
+          event: 'yjs-update',
+          payload: { update: hex }
+        }).catch(err => console.error('Failed to broadcast update', err));
+      }
+
       clearTimeout(timeoutId);
       timeoutId = setTimeout(async () => {
         if (isSaving) return;
@@ -123,6 +151,7 @@ export function useYjsSync() {
       yCommentsMap.unobserve(observeComments);
       doc.off('update', handleUpdate);
       clearTimeout(timeoutId);
+      supabase.removeChannel(channel);
     };
   }, []);
 
@@ -263,7 +292,6 @@ export function useYjsSync() {
     addComment,
     updateComment,
     deleteComment,
-    undoManager,
-    provider
+    undoManager
   };
 }

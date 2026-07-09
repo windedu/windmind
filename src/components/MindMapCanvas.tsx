@@ -71,6 +71,7 @@ export default function MindMapCanvas() {
   const [isInboxOpen, setInboxOpen] = useState(false);
   const [currentUserEmail, setCurrentUserEmail] = useState<string>('');
   const [sharedUsers, setSharedUsers] = useState<string[]>([]);
+  const [collapsedNodeIds, setCollapsedNodeIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -250,7 +251,7 @@ export default function MindMapCanvas() {
           const node: Node = {
             id: nodeId,
             position: { x: 0, y: 0 },
-            data: { label, isCollapsed: true },
+            data: { label },
             type: 'custom',
           };
           newNodes.push(node);
@@ -283,7 +284,7 @@ export default function MindMapCanvas() {
     e.target.value = '';
   };
 
-  const getVisibleElements = useCallback((allNodes: Node[], allEdges: Edge[]) => {
+  const getVisibleElements = useCallback((allNodes: Node[], allEdges: Edge[], collapsedIds: Set<string>) => {
     const visibleNodeIds = new Set<string>();
     
     // Find root nodes
@@ -297,7 +298,7 @@ export default function MindMapCanvas() {
       const current = queue.shift()!;
       visibleNodeIds.add(current.id);
       
-      if (!current.data?.isCollapsed) {
+      if (!collapsedIds.has(current.id)) {
         const childrenEdges = allEdges.filter(e => e.source === current.id);
         const childrenNodes = childrenEdges
           .map(e => allNodes.find(n => n.id === e.target))
@@ -313,8 +314,8 @@ export default function MindMapCanvas() {
   }, []);
 
   const { visibleNodes, visibleEdges } = useMemo(() => {
-    return getVisibleElements(nodes, edges);
-  }, [nodes, edges, getVisibleElements]);
+    return getVisibleElements(nodes, edges, collapsedNodeIds);
+  }, [nodes, edges, collapsedNodeIds, getVisibleElements]);
 
   // Apply layout calculating positions using dagre
   const layoutedData = useMemo(() => {
@@ -419,11 +420,13 @@ export default function MindMapCanvas() {
   }, [updateNodeData]);
 
   const onToggleCollapse = useCallback((id: string) => {
-    const node = nodes.find(n => n.id === id);
-    if (node) {
-      updateNodeData(id, { isCollapsed: !node.data?.isCollapsed });
-    }
-  }, [nodes, updateNodeData]);
+    setCollapsedNodeIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
 
   const isDescendant = useCallback((targetId: string, possibleAncestorId: string) => {
     let currentId = targetId;
@@ -584,6 +587,7 @@ export default function MindMapCanvas() {
       ...node,
       data: {
         ...node.data,
+        isCollapsed: collapsedNodeIds.has(node.id),
         onAddChild: () => onAddChild(node.id),
         onLabelChange,
         onToggleCollapse: () => onToggleCollapse(node.id),

@@ -1,5 +1,5 @@
 import * as Y from 'yjs';
-import { WebsocketProvider } from 'y-websocket';
+
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
@@ -12,12 +12,7 @@ export const roomId = pathParts.length >= 3 && pathParts[1] === 'map' ? pathPart
 
 export const doc = new Y.Doc();
 
-export const provider = new WebsocketProvider(
-  'wss://demos.yjs.dev',
-  roomId,
-  doc
-);
-
+// y-websocket provider removed as we use Supabase Realtime Broadcast
 // Define our shared types
 export const yNodesMap = doc.getMap('nodes');
 export const yEdgesMap = doc.getMap('edges');
