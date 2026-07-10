@@ -214,10 +214,34 @@ export default function MindMapCanvas() {
   };
 
   const handleExportMarkdown = () => {
-    const markdown = nodes.map(node => {
-      const depth = edges.filter(e => e.target === node.id).length;
-      return `${'  '.repeat(depth)}- ${node.data.label}`;
-    }).join('\n');
+    const lines: string[] = [];
+    
+    const getChildren = (parentId: string) => {
+      const childrenEdges = edges.filter(e => e.source === parentId);
+      const childrenNodes = childrenEdges
+        .map(e => nodes.find(n => n.id === e.target))
+        .filter(n => n !== undefined) as Node[];
+      
+      childrenNodes.sort((a, b) => (a.data?.order || 0) - (b.data?.order || 0));
+      return childrenNodes;
+    };
+
+    const traverse = (node: Node, depth: number) => {
+      lines.push(`${'  '.repeat(depth)}- ${node.data.label}`);
+      const children = getChildren(node.id);
+      children.forEach(child => traverse(child, depth + 1));
+    };
+
+    const incomingCount = new Map<string, number>();
+    nodes.forEach(n => incomingCount.set(n.id, 0));
+    edges.forEach(e => incomingCount.set(e.target, (incomingCount.get(e.target) || 0) + 1));
+    
+    const roots = nodes.filter(n => incomingCount.get(n.id) === 0);
+    roots.sort((a, b) => (a.data?.order || 0) - (b.data?.order || 0));
+    
+    roots.forEach(root => traverse(root, 0));
+
+    const markdown = lines.join('\n');
     const blob = new Blob([markdown], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
