@@ -71,7 +71,25 @@ export default function MindMapCanvas() {
   const [isInboxOpen, setInboxOpen] = useState(false);
   const [currentUserEmail, setCurrentUserEmail] = useState<string>('');
   const [sharedUsers, setSharedUsers] = useState<string[]>([]);
-  const [collapsedNodeIds, setCollapsedNodeIds] = useState<Set<string>>(new Set());
+  const [collapsedNodeIds, setCollapsedNodeIds] = useState<Set<string>>(() => {
+    const pathParts = window.location.pathname.split('/');
+    const roomId = pathParts.length >= 3 && pathParts[1] === 'map' ? pathParts[2] : 'default';
+    const saved = localStorage.getItem(`mindsync_collapsed_${roomId}`);
+    if (saved) {
+      try {
+        return new Set(JSON.parse(saved));
+      } catch (e) {
+        return new Set();
+      }
+    }
+    return new Set();
+  });
+
+  useEffect(() => {
+    const pathParts = window.location.pathname.split('/');
+    const roomId = pathParts.length >= 3 && pathParts[1] === 'map' ? pathParts[2] : 'default';
+    localStorage.setItem(`mindsync_collapsed_${roomId}`, JSON.stringify(Array.from(collapsedNodeIds)));
+  }, [collapsedNodeIds]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -262,6 +280,7 @@ export default function MindMapCanvas() {
         const newNodes: Node[] = [];
         const newEdges: Edge[] = [];
         const stack: { id: string, indent: number }[] = [];
+        const parentsToCollapse = new Set<string>();
         
         lines.forEach(line => {
           const match = line.match(/^([ \t]*)[-*+]\s+(.*)$/);
@@ -286,6 +305,7 @@ export default function MindMapCanvas() {
           
           if (stack.length > 0) {
             const parentId = stack[stack.length - 1].id;
+            parentsToCollapse.add(parentId);
             const edge: Edge = {
               id: `e-${parentId}-${nodeId}`,
               source: parentId,
@@ -299,6 +319,11 @@ export default function MindMapCanvas() {
         
         if (newNodes.length > 0) {
           addMultiple(newNodes, newEdges);
+          setCollapsedNodeIds(prev => {
+            const next = new Set(prev);
+            parentsToCollapse.forEach(p => next.add(p));
+            return next;
+          });
         } else {
           alert('마크다운 파일에서 올바른 리스트 형식을 찾을 수 없습니다.');
         }
