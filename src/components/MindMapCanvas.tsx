@@ -477,6 +477,32 @@ export default function MindMapCanvas() {
     });
   }, []);
 
+  const handleExpandToLevel = useCallback((level: number | 'all') => {
+    const getDepth = (nodeId: string, depth = 1, visited = new Set<string>()): number => {
+      if (visited.has(nodeId)) return depth;
+      visited.add(nodeId);
+      const incoming = edges.find(edge => edge.target === nodeId);
+      if (incoming) return getDepth(incoming.source, depth + 1, visited);
+      return depth;
+    };
+
+    setCollapsedNodeIds(() => {
+      const next = new Set<string>(); 
+      nodes.forEach(node => {
+        const hasChildren = edges.some(e => e.source === node.id);
+        if (!hasChildren) return; 
+        
+        if (level !== 'all') {
+           const d = getDepth(node.id);
+           if (d >= level) {
+             next.add(node.id);
+           }
+        }
+      });
+      return next;
+    });
+  }, [nodes, edges]);
+
   const isDescendant = useCallback((targetId: string, possibleAncestorId: string) => {
     let currentId = targetId;
     while (currentId) {
@@ -860,6 +886,22 @@ export default function MindMapCanvas() {
           }}
           placeholder="제목 없는 마인드맵"
         />
+        <select 
+          onChange={(e) => handleExpandToLevel(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+          style={{
+            ...actionButtonStyle, 
+            padding: '8px 12px',
+            appearance: 'auto',
+            minWidth: '120px'
+          } as React.CSSProperties}
+          title="레벨별 보기"
+        >
+          <option value="all">전체 펼치기</option>
+          <option value="1">1레벨까지만 보기</option>
+          <option value="2">2레벨까지만 보기</option>
+          <option value="3">3레벨까지만 보기</option>
+          <option value="4">4레벨까지만 보기</option>
+        </select>
         <button 
           onClick={() => openMapList('import')}
           title="다른 마인드맵 맵 가져오기"
