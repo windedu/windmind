@@ -690,6 +690,20 @@ export default function MindMapCanvas() {
       // Ignore if typing in an input
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       
+      // Expand to Level Shortcuts (Option+1 ~ Option+4, Option+0 for all)
+      if (e.altKey && ['0', '1', '2', '3', '4'].includes(e.key)) {
+        e.preventDefault();
+        const levelMap: Record<string, number | 'all'> = {
+          '0': 'all',
+          '1': 1,
+          '2': 2,
+          '3': 3,
+          '4': 4,
+        };
+        handleExpandToLevel(levelMap[e.key]);
+        return;
+      }
+
       // Undo / Redo
       if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
         e.preventDefault();
@@ -800,7 +814,7 @@ export default function MindMapCanvas() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [undoManager, nodes, edges, layoutedData, onAddChild, setNodes, onToggleCollapse]);
+  }, [undoManager, nodes, edges, layoutedData, onAddChild, setNodes, onToggleCollapse, handleExpandToLevel]);
 
   const nodesToRender = nodesWithCallbacks.map(n => {
     if (n.id === dropTargetId) {
@@ -1145,6 +1159,7 @@ export default function MindMapCanvas() {
               <li><kbd style={{ background: 'var(--bg-color)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--node-border)' }}>Option(Alt) + I</kbd> 노드 텍스트 수정</li>
               <li><kbd style={{ background: 'var(--bg-color)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--node-border)' }}>Space</kbd> 하위 노드 숨기기/보이기</li>
               <li><kbd style={{ background: 'var(--bg-color)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--node-border)' }}>Option(Alt) + C</kbd> 선택 노드에 댓글 달기</li>
+              <li><kbd style={{ background: 'var(--bg-color)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--node-border)' }}>Option(Alt) + 1~4</kbd> 특정 레벨까지만 보기 (0은 전체)</li>
               <li><kbd style={{ background: 'var(--bg-color)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--node-border)' }}>방향키</kbd> 주변 노드로 포커스 이동</li>
               <li><kbd style={{ background: 'var(--bg-color)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--node-border)' }}>Esc</kbd> 창 닫기 및 포커스 해제</li>
             </ul>
