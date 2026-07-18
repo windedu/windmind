@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import * as Y from 'yjs';
 import { applyNodeChanges, applyEdgeChanges, addEdge as rfAddEdge } from 'reactflow';
 import type { Node, Edge, NodeChange, EdgeChange, Connection } from 'reactflow';
@@ -14,10 +14,46 @@ export interface Comment {
   resolved?: boolean;
 }
 
+export interface PresenceState {
+  sessionId: string;
+  email: string;
+  x: number;
+  y: number;
+  selectedNodeId: string | null;
+  color: string;
+}
+
 export function useYjsSync() {
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
+  const [presences, setPresences] = useState<Record<string, PresenceState>>({});
+  
+  const channelRef = useRef<any>(null);
+  const myPresenceRef = useRef<PresenceState>({
+    sessionId: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2),
+    email: '',
+    x: 0,
+    y: 0,
+    selectedNodeId: null,
+    color: '#' + Math.floor(Math.random()*16777215).toString(16)
+  });
+
+  const updatePresence = useCallback((updates: Partial<PresenceState>) => {
+    myPresenceRef.current = { ...myPresenceRef.current, ...updates };
+    if (channelRef.current && channelRef.current.state === 'joined') {
+      channelRef.current.track(myPresenceRef.current).catch(console.error);
+    }
+  }, []);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user?.email) {
+        myPresenceRef.current.email = session.user.email;
+        updatePresence({});
+      }
+    });
+  }, [updatePresence]);
 
   useEffect(() => {
     const observeNodes = () => {
@@ -90,10 +126,14 @@ export function useYjsSync() {
 
     loadFromSupabase();
 
-    // Supabase Realtime Broadcast & Auto-save
+    // Supabase Realtime Broadcast, Presence & Auto-save
     const channel = supabase.channel(`mindmap-${roomId}`, {
-      config: { broadcast: { self: false, ack: false } },
+      config: { 
+        broadcast: { self: false, ack: false },
+        presence: { key: '' } // auto-generate UUID
+      },
     });
+    channelRef.current = channel;
     
     let isSubscribed = false;
     let pendingUpdates: string[] = [];
@@ -136,6 +176,17 @@ export function useYjsSync() {
       }
     });
 
+    channel.on('presence', { event: 'sync' }, () => {
+      const state = channel.presenceState();
+      const newPresences: Record<string, PresenceState> = {};
+      for (const key in state) {
+        if (state[key] && state[key].length > 0) {
+          newPresences[key] = state[key][0] as unknown as PresenceState;
+        }
+      }
+      setPresences(newPresences);
+    });
+
     channel.subscribe((status) => {
       if (status === 'SUBSCRIBED') {
         isSubscribed = true;
@@ -155,8 +206,28 @@ export function useYjsSync() {
           }).catch(err => console.error('Failed to broadcast queued update', err));
         });
         pendingUpdates = [];
+        
+        // Track presence immediately after joining
+        channel.track(myPresenceRef.current).catch(console.error);
       }
     });
+
+    const requestSync = () => {
+      channel.send({
+        type: 'broadcast',
+        event: 'yjs-request-sync',
+        payload: { stateVector: Array.from(Y.encodeStateVector(doc)) }
+      }).catch(e => console.error(e));
+    };
+
+    const handleVisibilityOrOnline = () => {
+      if (document.visibilityState === 'visible' || navigator.onLine) {
+        requestSync();
+      }
+    };
+
+    window.addEventListener('online', handleVisibilityOrOnline);
+    document.addEventListener('visibilitychange', handleVisibilityOrOnline);
 
     let timeoutId: any;
     let isSaving = false;
@@ -174,26 +245,27 @@ export function useYjsSync() {
         } else {
           pendingUpdates.push(hex);
         }
-      }
 
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(async () => {
-        if (isSaving) return;
-        isSaving = true;
-        try {
-          const stateVector = Y.encodeStateAsUpdate(doc);
-          const hex = '\\x' + Array.from(stateVector as Uint8Array).map((b: number) => b.toString(16).padStart(2, '0')).join('');
-          
-          await supabase
-            .from('mindmaps')
-            .update({ document: hex, updated_at: new Date().toISOString() })
-            .eq('id', roomId);
-        } catch (err) {
-          console.error('Failed to save to Supabase', err);
-        } finally {
-          isSaving = false;
-        }
-      }, 2000); // 2 seconds debounce
+        // Auto-save to DB only on local changes
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(async () => {
+          if (isSaving) return;
+          isSaving = true;
+          try {
+            const stateVector = Y.encodeStateAsUpdate(doc);
+            const hexUpdate = '\\x' + Array.from(stateVector as Uint8Array).map((b: number) => b.toString(16).padStart(2, '0')).join('');
+            
+            await supabase
+              .from('mindmaps')
+              .update({ document: hexUpdate, updated_at: new Date().toISOString() })
+              .eq('id', roomId);
+          } catch (err) {
+            console.error('Failed to save to Supabase', err);
+          } finally {
+            isSaving = false;
+          }
+        }, 2000); // 2 seconds debounce
+      }
     };
 
     doc.on('update', handleUpdate);
@@ -204,6 +276,8 @@ export function useYjsSync() {
       yCommentsMap.unobserve(observeComments);
       doc.off('update', handleUpdate);
       clearTimeout(timeoutId);
+      window.removeEventListener('online', handleVisibilityOrOnline);
+      document.removeEventListener('visibilitychange', handleVisibilityOrOnline);
       supabase.removeChannel(channel);
     };
   }, []);
@@ -332,6 +406,9 @@ export function useYjsSync() {
     nodes,
     edges,
     comments,
+    presences,
+    updatePresence,
+    mySessionId: myPresenceRef.current.sessionId,
     setNodes, 
     setEdges,
     onNodesChange,

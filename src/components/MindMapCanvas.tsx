@@ -1,5 +1,5 @@
 import { useMemo, useCallback, useEffect, useRef, useState } from 'react';
-import ReactFlow, { Background, Controls, useReactFlow } from 'reactflow';
+import ReactFlow, { Background, Controls, useReactFlow, useStore, useOnSelectionChange } from 'reactflow';
 import type { Edge, Node } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { v4 as uuidv4 } from 'uuid';
@@ -32,6 +32,42 @@ const nodeTypes = {
   dropIndicator: DropIndicatorNode,
 };
 
+const CursorsOverlay = ({ presences, currentSessionId }: { presences: Record<string, any>, currentSessionId: string }) => {
+  const transform = useStore((s) => s.transform); // [x, y, zoom]
+  
+  return (
+    <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 10, overflow: 'hidden' }}>
+      {Object.values(presences).map((p: any) => {
+        if (!p || !p.sessionId || p.sessionId === currentSessionId) return null;
+        
+        // Calculate screen position from canvas coordinates
+        const screenX = p.x * transform[2] + transform[0];
+        const screenY = p.y * transform[2] + transform[1];
+        
+        return (
+          <div key={p.sessionId} style={{
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            transform: `translate(${screenX}px, ${screenY}px)`,
+            transition: 'transform 0.1s linear', // smooth movement
+          }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill={p.color} stroke="white" strokeWidth="2">
+              <path d="M5.5 3.21V20.8c0 .45.54.67.85.35l4.86-4.86a.5.5 0 01.35-.15h6.87a.5.5 0 00.35-.85L5.5 3.21z" />
+            </svg>
+            <div style={{
+              background: p.color, color: 'white', padding: '2px 6px', borderRadius: '4px',
+              fontSize: '12px', marginTop: '4px', whiteSpace: 'nowrap', width: 'max-content'
+            }}>
+              {p.email ? p.email.split('@')[0] : 'Guest'}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 export default function MindMapCanvas() {
   const {
     nodes,
@@ -45,16 +81,42 @@ export default function MindMapCanvas() {
     updateNodeData,
     changeParent,
     comments,
+    presences,
+    updatePresence,
+    mySessionId,
     addComment,
     updateComment,
     deleteComment,
     undoManager
   } = useYjsSync();
 
-  const { setCenter, getZoom } = useReactFlow();
+  const { setCenter, getZoom, screenToFlowPosition } = useReactFlow();
 
   const { applyLayout } = useAutoLayout();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const reactFlowWrapperRef = useRef<HTMLDivElement>(null);
+  const lastTrackTimeRef = useRef(0);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    const now = Date.now();
+    if (now - lastTrackTimeRef.current > 50) {
+      lastTrackTimeRef.current = now;
+      if (!reactFlowWrapperRef.current) return;
+      const position = screenToFlowPosition({
+        x: e.clientX,
+        y: e.clientY,
+      });
+      updatePresence({ x: position.x, y: position.y });
+    }
+  }, [screenToFlowPosition, updatePresence]);
+
+  useOnSelectionChange({
+    onChange: ({ nodes }) => {
+      const selected = nodes.find(n => n.selected);
+      updatePresence({ selectedNodeId: selected ? selected.id : null });
+    },
+  });
+
   const [dropIndicator, setDropIndicator] = useState<{x: number, y: number} | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   const [selectedNodeIdForComments, setSelectedNodeIdForComments] = useState<string | null>(null);
@@ -851,7 +913,12 @@ export default function MindMapCanvas() {
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex' }}>
-      <div style={{ flex: 1, position: 'relative' }}>
+      <div 
+        ref={reactFlowWrapperRef}
+        style={{ flex: 1, position: 'relative' }}
+        onPointerMove={handlePointerMove}
+      >
+        <CursorsOverlay presences={presences} currentSessionId={mySessionId} />
         <input 
         type="file" 
         accept=".md,.txt" 
