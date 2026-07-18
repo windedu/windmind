@@ -95,10 +95,11 @@ export function useYjsSync() {
       config: { broadcast: { self: false, ack: false } },
     });
     
-    channel.on('broadcast', { event: 'yjs-update' }, ({ payload }) => {
-      if (roomId === 'mindsync-default-room') return;
-      const { update } = payload;
-      const match = update.match(/.{1,2}/g);
+    let isSubscribed = false;
+    let pendingUpdates: string[] = [];
+
+    const applyHexUpdate = (hexStr: string) => {
+      const match = hexStr.match(/.{1,2}/g);
       if (match) {
         const buffer = new Uint8Array(match.map((byte: string) => parseInt(byte, 16)));
         try {
@@ -107,7 +108,55 @@ export function useYjsSync() {
           console.error('Failed to apply update', e);
         }
       }
-    }).subscribe();
+    };
+
+    channel.on('broadcast', { event: 'yjs-update' }, ({ payload }) => {
+      if (roomId === 'mindsync-default-room') return;
+      applyHexUpdate(payload.update);
+    });
+
+    channel.on('broadcast', { event: 'yjs-sync-update' }, ({ payload }) => {
+      if (roomId === 'mindsync-default-room') return;
+      applyHexUpdate(payload.update);
+    });
+
+    channel.on('broadcast', { event: 'yjs-request-sync' }, ({ payload }) => {
+      if (roomId === 'mindsync-default-room') return;
+      try {
+        const sv = new Uint8Array(payload.stateVector);
+        const update = Y.encodeStateAsUpdate(doc, sv);
+        const hex = Array.from(update).map(b => b.toString(16).padStart(2, '0')).join('');
+        channel.send({
+          type: 'broadcast',
+          event: 'yjs-sync-update',
+          payload: { update: hex }
+        }).catch(err => console.error('Failed to send sync update', err));
+      } catch(e) {
+        console.error('Failed to process request-sync', e);
+      }
+    });
+
+    channel.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        isSubscribed = true;
+        // Request sync from other peers
+        channel.send({
+          type: 'broadcast',
+          event: 'yjs-request-sync',
+          payload: { stateVector: Array.from(Y.encodeStateVector(doc)) }
+        }).catch(e => console.error(e));
+
+        // Send pending updates
+        pendingUpdates.forEach(hex => {
+          channel.send({
+            type: 'broadcast',
+            event: 'yjs-update',
+            payload: { update: hex }
+          }).catch(err => console.error('Failed to broadcast queued update', err));
+        });
+        pendingUpdates = [];
+      }
+    });
 
     let timeoutId: any;
     let isSaving = false;
@@ -116,11 +165,15 @@ export function useYjsSync() {
 
       if (origin !== 'supabase-broadcast') {
         const hex = Array.from(update).map(b => b.toString(16).padStart(2, '0')).join('');
-        channel.send({
-          type: 'broadcast',
-          event: 'yjs-update',
-          payload: { update: hex }
-        }).catch(err => console.error('Failed to broadcast update', err));
+        if (isSubscribed) {
+          channel.send({
+            type: 'broadcast',
+            event: 'yjs-update',
+            payload: { update: hex }
+          }).catch(err => console.error('Failed to broadcast update', err));
+        } else {
+          pendingUpdates.push(hex);
+        }
       }
 
       clearTimeout(timeoutId);
